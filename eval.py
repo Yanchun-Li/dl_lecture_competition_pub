@@ -10,7 +10,7 @@ from termcolor import cprint
 from tqdm import tqdm
 
 from src.datasets import ThingsMEGDataset
-from src.models import BasicConvClassifier
+from src.models import BasicConvClassifier, CLIPConvClassifier
 from src.utils import set_seed
 
 
@@ -31,8 +31,8 @@ def run(args: DictConfig):
     # ------------------
     #       Model
     # ------------------
-    model = BasicConvClassifier(
-        test_set.num_classes, test_set.seq_len, test_set.num_channels
+    model = CLIPConvClassifier(
+        test_set.num_classes, args.device
     ).to(args.device)
     model.load_state_dict(torch.load(args.model_path, map_location=args.device))
 

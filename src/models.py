@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops.layers.torch import Rearrange
+import clip
 
 
 class BasicConvClassifier(nn.Module):
@@ -74,3 +75,38 @@ class ConvBlock(nn.Module):
         # X = F.glu(X, dim=-2)
 
         return self.dropout(X)
+
+class CLIPConvClassifier(nn.Module):
+    def __init__(
+        self,
+        num_classes: int,
+        device: str,
+        clip_model_name: str = "ViT-B/32"
+    ) -> None:
+        super().__init__()
+
+        self.device = device
+        self.clip_model, self.clip_preprocess = clip.load(clip_model_name, device=self.device)
+        
+        # Freeze CLIP model parameters
+        for param in self.clip_model.parameters():
+            param.requires_grad = False
+
+        self.head = nn.Sequential(
+            nn.Linear(self.clip_model.visual.output_dim, 512),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(512, num_classes),
+        )
+
+    def forward(self, X: torch.Tensor) -> torch.Tensor:
+        """_summary_
+        Args:
+            X (b, c, t): _description_
+        Returns:
+            X (b, num_classes): _description_
+        """
+        X = self.clip_model.encode_image(X)
+        X = self.head(X)
+
+        return X

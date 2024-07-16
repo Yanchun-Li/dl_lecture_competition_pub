@@ -10,8 +10,9 @@ from termcolor import cprint
 from tqdm import tqdm
 
 from src.datasets import ThingsMEGDataset
-from src.models import BasicConvClassifier
+from src.models import CLIPConvClassifier
 from src.utils import set_seed
+import clip
 
 
 @hydra.main(version_base=None, config_path="configs", config_name="config")
@@ -26,6 +27,9 @@ def run(args: DictConfig):
     #    Dataloader
     # ------------------
     loader_args = {"batch_size": args.batch_size, "num_workers": args.num_workers}
+
+    # Use CLIP model's preprocessor
+    _, preprocess = clip.load("ViT-B/32", device=args.device)
     
     train_set = ThingsMEGDataset("train", args.data_dir)
     train_loader = torch.utils.data.DataLoader(train_set, shuffle=True, **loader_args)
@@ -39,8 +43,8 @@ def run(args: DictConfig):
     # ------------------
     #       Model
     # ------------------
-    model = BasicConvClassifier(
-        train_set.num_classes, train_set.seq_len, train_set.num_channels
+    model = CLIPConvClassifier(
+        train_set.num_classes, args.device
     ).to(args.device)
 
     # ------------------

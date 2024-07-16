@@ -4,10 +4,11 @@ import torch
 from typing import Tuple
 from termcolor import cprint
 from glob import glob
+from PIL import Image
 
 
 class ThingsMEGDataset(torch.utils.data.Dataset):
-    def __init__(self, split: str, data_dir: str = "data") -> None:
+    def __init__(self, split: str, data_dir: str = "data", preprocess=None) -> None:
         super().__init__()
         assert split in ["train", "val", "test"], f"Invalid split: {split}"
         
@@ -15,20 +16,24 @@ class ThingsMEGDataset(torch.utils.data.Dataset):
         self.data_dir = data_dir
         self.num_classes = 1854
         self.num_samples = len(glob(os.path.join(data_dir, f"{split}_X", "*.npy")))
+        self.preprocess = preprocess
 
     def __len__(self) -> int:
         return self.num_samples
 
     def __getitem__(self, i):
         X_path = os.path.join(self.data_dir, f"{self.split}_X", str(i).zfill(5) + ".npy")
-        X = torch.from_numpy(np.load(X_path))
+        X = torch.from_numpy(np.load(X_path)).float()
+
+        # Data preprocessing step: normalization
+        X = (X - X.mean()) / X.std()
         
         subject_idx_path = os.path.join(self.data_dir, f"{self.split}_subject_idxs", str(i).zfill(5) + ".npy")
-        subject_idx = torch.from_numpy(np.load(subject_idx_path))
+        subject_idx = torch.from_numpy(np.load(subject_idx_path)).long()
         
         if self.split in ["train", "val"]:
             y_path = os.path.join(self.data_dir, f"{self.split}_y", str(i).zfill(5) + ".npy")
-            y = torch.from_numpy(np.load(y_path))
+            y = torch.from_numpy(np.load(y_path)).long()
             
             return X, y, subject_idx
         else:
