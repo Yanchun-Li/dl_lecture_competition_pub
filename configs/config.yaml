@@ -1,6 +1,6 @@
-batch_size: 128
+batch_size: 64
 epochs: 80
-lr: 0.0005
+lr: 0.001
 
 device: cuda:0
 num_workers: 4
@@ -8,6 +8,9 @@ seed: 1234
 use_wandb: False
 
 data_dir: data
+
+# Transformer Model specific configurations
+transformer_model_name: bert-base-uncased  # Transformer model to be used
 
 # Evaluation
 model_path: 

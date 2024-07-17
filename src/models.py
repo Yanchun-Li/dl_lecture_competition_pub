@@ -1,9 +1,9 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.utils.checkpoint as checkpoint
 from einops.layers.torch import Rearrange
-import clip
-
+from transformers import AutoModel
 
 class BasicConvClassifier(nn.Module):
     def __init__(
@@ -76,37 +76,44 @@ class ConvBlock(nn.Module):
 
         return self.dropout(X)
 
-class CLIPConvClassifier(nn.Module):
+
+class CheckpointTransformerClassifier(nn.Module):
     def __init__(
         self,
         num_classes: int,
-        device: str,
-        clip_model_name: str = "ViT-B/32"
+        seq_len: int,
+        in_channels: int,
+        transformer_model_name: str = "bert-base-uncased",
+        hid_dim: int = 768,  # This should match the hidden size of the transformer model
+        dropout_rate: float = 0.3  # Dropout rate
     ) -> None:
         super().__init__()
 
-        self.device = device
-        self.clip_model, self.clip_preprocess = clip.load(clip_model_name, device=self.device)
-        
-        # Freeze CLIP model parameters
-        for param in self.clip_model.parameters():
-            param.requires_grad = False
-
-        self.head = nn.Sequential(
-            nn.Linear(self.clip_model.visual.output_dim, 512),
+        self.input_linear = nn.Linear(in_channels, hid_dim)  # Linearly transform input to hidden dimension
+        self.transformer = AutoModel.from_pretrained(transformer_model_name)
+        self.fc = nn.Sequential(
+            nn.Linear(hid_dim, 512),
             nn.ReLU(),
-            nn.Dropout(0.3),
+            nn.Dropout(dropout_rate),
             nn.Linear(512, num_classes),
         )
 
     def forward(self, X: torch.Tensor) -> torch.Tensor:
-        """_summary_
+        """Forward pass
         Args:
-            X (b, c, t): _description_
+            X (b, c, t): Input tensor
         Returns:
-            X (b, num_classes): _description_
+            X (b, num_classes): Output tensor
         """
-        X = self.clip_model.encode_image(X)
-        X = self.head(X)
+        # Assuming X has shape [batch_size, in_channels, seq_len]
+        X = X.permute(0, 2, 1)  # Reshape to [batch_size, seq_len, in_channels]
+        X = self.input_linear(X)  # Transform to [batch_size, seq_len, hid_dim]
+
+        def custom_forward(*inputs):
+            return self.transformer(inputs_embeds=inputs[0])[0]  # Use hidden states
+
+        transformer_out = checkpoint.checkpoint(custom_forward, X)
+        X = transformer_out[:, 0, :]  # Use CLS token output
+        X = self.fc(X)
 
         return X
