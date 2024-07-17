@@ -1,6 +1,6 @@
 batch_size: 128
 epochs: 80
-lr: 0.001
+lr: 0.01
 
 device: cuda:0
 num_workers: 4
@@ -13,4 +13,4 @@ data_dir: data
 transformer_model_name: bert-base-uncased  # Transformer model to be used
 
 # Evaluation
-model_path: 
+model_path: /workspace/dl_lecture_competition_pub/outputs/2024-07-17/05-20-47/model_best.pt
