@@ -77,6 +77,39 @@ class ConvBlock(nn.Module):
         return self.dropout(X)
 
 
+class SubjectSpecificLayer(nn.Module):
+    def __init__(self, num_subjects: int, hid_dim: int) -> None:
+        super().__init__()
+        self.embedding = nn.Embedding(num_subjects, hid_dim)
+
+    def forward(self, X: torch.Tensor, subject_idx: torch.Tensor) -> torch.Tensor:
+        subject_embedding = self.embedding(subject_idx)
+        return X + subject_embedding.unsqueeze(2)
+
+class ComplexModelWithSubject(nn.Module):
+    def __init__(self, num_classes: int, seq_len: int, in_channels: int, num_subjects: int, hid_dim: int = 128) -> None:
+        super().__init__()
+        self.conv_blocks = nn.Sequential(
+            ConvBlock(in_channels, hid_dim),
+            ConvBlock(hid_dim, hid_dim),
+            ConvBlock(hid_dim, hid_dim * 2),
+        )
+        self.subject_layer = SubjectSpecificLayer(num_subjects, hid_dim * 2)
+        self.lstm = nn.LSTM(hid_dim * 2, hid_dim, batch_first=True, bidirectional=True)
+        self.head = nn.Sequential(
+            nn.AdaptiveAvgPool1d(1),
+            Rearrange("b d 1 -> b d"),
+            nn.Linear(hid_dim * 2, num_classes),
+        )
+
+    def forward(self, X: torch.Tensor, subject_idx: torch.Tensor) -> torch.Tensor:
+        X = self.conv_blocks(X)
+        X = self.subject_layer(X, subject_idx)
+        X, _ = self.lstm(X.permute(0, 2, 1))
+        X = X.permute(0, 2, 1)
+        return self.head(X)
+
+
 class CheckpointTransformerClassifier(nn.Module):
     def __init__(
         self,

@@ -10,7 +10,7 @@ from termcolor import cprint
 from tqdm import tqdm
 
 from src.datasets import ThingsMEGDataset
-from src.models import CheckpointTransformerClassifier
+from src.models import CheckpointTransformerClassifier, ComplexModelWithSubject
 from src.utils import set_seed
 from torch.cuda.amp import GradScaler, autocast
 
@@ -35,23 +35,25 @@ def run(args: DictConfig):
     test_loader = torch.utils.data.DataLoader(
         test_set, shuffle=False, batch_size=args.batch_size, num_workers=args.num_workers
     )
+    NUM_SUBJECTS = train_set.num_subjects
 
     # ------------------
     #       Model
     # ------------------
-    model = CheckpointTransformerClassifier(
-        num_classes=train_set.num_classes, 
-        seq_len=train_set.seq_len,
-        in_channels=train_set.num_channels,
-        transformer_model_name=args.transformer_model_name,
-        dropout_rate=0.3
+    # model = CheckpointTransformerClassifier(
+    #     num_classes=train_set.num_classes, 
+    #     seq_len=train_set.seq_len,
+    #     in_channels=train_set.num_channels,
+    #     transformer_model_name=args.transformer_model_name,
+    #     dropout_rate=0.3
+    # ).to(args.device)
+    model = ComplexModelWithSubject(
+        train_set.num_classes, train_set.seq_len, train_set.num_channels, num_subjects=NUM_SUBJECTS
     ).to(args.device)
-
     # ------------------
     #     Optimizer
     # ------------------
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
-    scaler = GradScaler()
 
     # ------------------
     #   Start training
@@ -68,32 +70,29 @@ def run(args: DictConfig):
         
         model.train()
         for X, y, subject_idxs in tqdm(train_loader, desc="Train"):
-            X, y = X.to(args.device), y.to(args.device)
+            X, y, subject_idxs= X.to(args.device), y.to(args.device), subject_idxs.to(args.device)
             
-            with autocast():
-                y_pred = model(X)
-                loss = F.cross_entropy(y_pred, y)
+            y_pred = model(X, subject_idxs)
             
+            loss = F.cross_entropy(y_pred, y)
             train_loss.append(loss.item())
             
             optimizer.zero_grad()
-            scaler.scale(loss).backward()
-            scaler.step(optimizer)
-            scaler.update()
+            loss.backward()
+            optimizer.step()
             
             acc = accuracy(y_pred, y)
             train_acc.append(acc.item())
 
         model.eval()
         for X, y, subject_idxs in tqdm(val_loader, desc="Validation"):
-            X, y = X.to(args.device), y.to(args.device)
+            X, y, subject_idxs = X.to(args.device), y.to(args.device), subject_idxs.to(args.device)
             
             with torch.no_grad():
-                with autocast():
-                    y_pred = model(X)
-                
-                val_loss.append(F.cross_entropy(y_pred, y).item())
-                val_acc.append(accuracy(y_pred, y).item())
+                y_pred = model(X, subject_idxs)
+            
+            val_loss.append(F.cross_entropy(y_pred, y).item())
+            val_acc.append(accuracy(y_pred, y).item())
 
         print(f"Epoch {epoch+1}/{args.epochs} | train loss: {np.mean(train_loss):.3f} | train acc: {np.mean(train_acc):.3f} | val loss: {np.mean(val_loss):.3f} | val acc: {np.mean(val_acc):.3f}")
         torch.save(model.state_dict(), os.path.join(logdir, "model_last.pt"))
@@ -104,13 +103,7 @@ def run(args: DictConfig):
             cprint("New best.", "cyan")
             torch.save(model.state_dict(), os.path.join(logdir, "model_best.pt"))
             max_val_acc = np.mean(val_acc)
-        
-        # Pause training after every 20 epochs and save model
-        if (epoch + 1) % 5 == 0:
-            print(f"Pausing training at epoch {epoch+1}")
-            torch.save(model.state_dict(), os.path.join(logdir, f"model_epoch_{epoch+1}.pt"))
-            if args.use_wandb:
-                wandb.log({"train_loss": np.mean(train_loss), "train_acc": np.mean(train_acc), "val_loss": np.mean(val_loss), "val_acc": np.mean(val_acc)})
+    
             
     # ----------------------------------
     #  Start evaluation with best model

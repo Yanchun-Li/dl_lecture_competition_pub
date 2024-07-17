@@ -10,7 +10,7 @@ from termcolor import cprint
 from tqdm import tqdm
 
 from src.datasets import ThingsMEGDataset
-from src.models import BasicConvClassifier, TransformerClassifier
+from src.models import BasicConvClassifier, ComplexModelWithSubject
 from src.utils import set_seed
 
 
@@ -27,6 +27,7 @@ def run(args: DictConfig):
     test_loader = torch.utils.data.DataLoader(
         test_set, shuffle=False, batch_size=args.batch_size, num_workers=args.num_workers
     )
+    NUM_SUBJECTS = test_set.num_subjects
 
     # ------------------
     #       Model
@@ -35,11 +36,8 @@ def run(args: DictConfig):
     #     test_set.num_classes, test_set.seq_len, test_set.num_channels
     # ).to(args.device)
     # model.load_state_dict(torch.load(args.model_path, map_location=args.device))
-    model = TransformerClassifier(
-        num_classes=test_set.num_classes,
-        seq_len=test_set.seq_len,
-        in_channels=test_set.num_channels,
-        transformer_model_name="bert-base-uncased"
+    model = ComplexModelWithSubject(
+        test_set.num_classes, test_set.seq_len, test_set.num_channels, num_subjects=NUM_SUBJECTS
     ).to(args.device)
     model.load_state_dict(torch.load(args.model_path, map_location=args.device))
     

@@ -8,7 +8,7 @@ from PIL import Image
 
 
 class ThingsMEGDataset(torch.utils.data.Dataset):
-    def __init__(self, split: str, data_dir: str = "data", preprocess=None) -> None:
+    def __init__(self, split: str, data_dir: str = "data") -> None:
         super().__init__()
         assert split in ["train", "val", "test"], f"Invalid split: {split}"
         
@@ -16,7 +16,6 @@ class ThingsMEGDataset(torch.utils.data.Dataset):
         self.data_dir = data_dir
         self.num_classes = 1854
         self.num_samples = len(glob(os.path.join(data_dir, f"{split}_X", "*.npy")))
-        self.preprocess = preprocess
 
     def __len__(self) -> int:
         return self.num_samples
