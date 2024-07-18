@@ -27,7 +27,7 @@ def run(args: DictConfig):
     test_loader = torch.utils.data.DataLoader(
         test_set, shuffle=False, batch_size=args.batch_size, num_workers=args.num_workers
     )
-    NUM_SUBJECTS = test_set.num_subjects
+    NUM_SUBJECTS = 65728
 
     # ------------------
     #       Model

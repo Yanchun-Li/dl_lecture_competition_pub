@@ -6,7 +6,6 @@ from termcolor import cprint
 from glob import glob
 from PIL import Image
 
-
 class ThingsMEGDataset(torch.utils.data.Dataset):
     def __init__(self, split: str, data_dir: str = "data") -> None:
         super().__init__()
@@ -16,6 +15,12 @@ class ThingsMEGDataset(torch.utils.data.Dataset):
         self.data_dir = data_dir
         self.num_classes = 1854
         self.num_samples = len(glob(os.path.join(data_dir, f"{split}_X", "*.npy")))
+        self.num_subjects = self.calculate_num_subjects()
+
+    def calculate_num_subjects(self):
+        subject_idxs_paths = glob(os.path.join(self.data_dir, f"{self.split}_subject_idxs", "*.npy"))
+        subject_idxs = [np.load(path).item() for path in subject_idxs_paths]
+        return len(set(subject_idxs))
 
     def __len__(self) -> int:
         return self.num_samples
